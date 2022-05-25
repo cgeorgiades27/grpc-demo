@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+option go_package ="github.com/cgeorgiades27/grpc-demo/services";
+
+package services;
+
+message XrefRequest {
+    string lastfour = 1;
+}
+
+message XrefResponse {
+    XREF token = 1;
+}
+
+message XREF {
+    string value = 1;
+    string source = 2;
+    enum XrefStatus {
+        AVAILABLE = 0;
+        USED = 1;
+    } 
+    XrefStatus status = 3;
+}
+
+service XrefService {
+    rpc GetXref(XrefRequest) returns (XrefResponse) {}
+    rpc RevertXref(XREF) returns (XREF) {}
+}
