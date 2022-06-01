@@ -1,23 +1,26 @@
-package services
+package xref
 
 import (
 	"context"
 	"errors"
 	"log"
-
-	pb "github.com/cgeorgiades27/grpc-demo/pkg/services/proto"
-	services "github.com/cgeorgiades27/grpc-demo/pkg/services/proto"
 )
 
 // type xrefService struct {
 // 	db *gorm.DB
 // }
 
-type XrefServer struct {
-	pb.UnimplementedXrefServiceServer
+func NewXrefService() *xrefServer {
+	return &xrefServer{
+		UnimplementedXrefServiceServer: services.UnimplementedXrefServiceServer{},
+	}
 }
 
-func (x *XrefServer) GetXref(ctx context.Context, in *pb.XrefRequest) (*pb.XrefResponse, error) {
+type xrefServer struct {
+	services.UnimplementedXrefServiceServer
+}
+
+func (x *xrefServer) GetXref(ctx context.Context, in *services.XrefRequest) (*services.XrefResponse, error) {
 
 	if len(in.GetLastfour()) < 4 {
 		return nil, errors.New("invalid request")
