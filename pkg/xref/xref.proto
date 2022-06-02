@@ -12,17 +12,26 @@ message XrefResponse {
     XREF token = 1;
 }
 
+message XrefStatus {
+    enum StatusEnum {
+        AVAILABLE = 0;
+        UNAVAILABLE = 1;
+    } 
+}
+
 message XREF {
     string value = 1;
-    string source = 2;
-    enum XrefStatus {
-        AVAILABLE = 0;
-        USED = 1;
-    } 
-    XrefStatus status = 3;
+}
+
+message XrefSummary {
+    int32 total_new = 1;
+    int32 total_updated = 2;
+    int32 elapsed_time = 3;
 }
 
 service XrefService {
     rpc GetXref(XrefRequest) returns (XrefResponse) {}
-    rpc RevertXref(XREF) returns (XREF) {}
+    rpc AddXrefs(stream XrefRequest) returns (XrefSummary) {}
+    rpc GetAllXrefs(XrefStatus) returns (stream XrefResponse) {}
+    rpc GetXrefs(stream XrefRequest) returns (stream XrefResponse) {}
 }
