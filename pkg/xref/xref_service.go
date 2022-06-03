@@ -41,6 +41,10 @@ func (x *xrefServer) InitData(path string) error {
 	}
 	defer f.Close()
 
+	if err := x.redis.Del(x.ctx, AVAILABLE).Err(); err != nil {
+		return err
+	}
+
 	r := bufio.NewScanner(f)
 	for r.Scan() {
 		x.redis.RPush(x.ctx, AVAILABLE, r.Text())

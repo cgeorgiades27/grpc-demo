@@ -26,7 +26,6 @@ message MagicNumber {
     string value = 1;
 }
 
-
 message MagicNumberSummary {
     uint64 total = 1;
 }
