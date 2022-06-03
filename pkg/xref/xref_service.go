@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"time"
 
@@ -17,6 +18,7 @@ import (
 const (
 	AVAILABLE   = "available"
 	UNAVAILABLE = "unavailable"
+	XMAP        = "xmap"
 )
 
 func NewXrefService(ctx context.Context, rds *redis.Client) *xrefServer {
@@ -41,14 +43,28 @@ func (x *xrefServer) InitData(path string) error {
 	}
 	defer f.Close()
 
+	// xref map
+	if err := x.redis.Del(x.ctx, XMAP).Err(); err != nil {
+		return err
+	}
+
+	// magicnum list
 	if err := x.redis.Del(x.ctx, AVAILABLE).Err(); err != nil {
 		return err
 	}
 
+	// used magicnum list
+	if err := x.redis.Del(x.ctx, UNAVAILABLE).Err(); err != nil {
+		return err
+	}
+
+	count := 0
 	r := bufio.NewScanner(f)
 	for r.Scan() {
 		x.redis.RPush(x.ctx, AVAILABLE, r.Text())
+		count++
 	}
+	log.Printf("Successfully added %d records", count)
 	return nil
 }
 
@@ -68,24 +84,29 @@ func (x *xrefServer) GetXref(ctx context.Context, in *XrefRequest) (*XrefRespons
 // GetMagicNumbers gets all magic numbers by STATUS
 func (x *xrefServer) GetMagicNumberSummary(ctx context.Context, status *Status) (*MagicNumberSummary, error) {
 
-	var s string
+	var (
+		s     string
+		err   error
+		total int64
+	)
+
 	statusType := status.Status.String()
 	switch statusType {
 	case string(constants.AVAILABLE):
-		s = "available"
+		s = AVAILABLE
+		total, err = x.redis.LLen(x.ctx, s).Result()
 	case string(constants.UNAVAILABLE):
-		s = "unavailable"
+		s = UNAVAILABLE
+		total, err = x.redis.HLen(x.ctx, s).Result()
 	default:
 		return nil, errors.New("type not found")
 	}
 
-	// get all
-	res, err := x.redis.LLen(x.ctx, s).Result()
 	if err != nil {
 		return nil, err
 	}
 
-	return &MagicNumberSummary{Total: uint64(res)}, nil
+	return &MagicNumberSummary{Total: uint64(total)}, nil
 }
 
 // AddXrefs accepts a stream of requests and returns a summary
@@ -128,19 +149,24 @@ func (x *xrefServer) AddXrefs(stream XrefService_AddXrefsServer) error {
 // GetMagicNumbers gets all magic numbers by STATUS
 func (x *xrefServer) GetMagicNumbers(status *Status, stream XrefService_GetMagicNumbersServer) error {
 
-	var s string
+	var (
+		s   string
+		err error
+		res []string
+	)
+
 	statusType := status.Status.String()
 	switch statusType {
 	case string(constants.AVAILABLE):
-		s = "available"
+		s = AVAILABLE
+		res, err = x.redis.LRange(x.ctx, s, 0, -1).Result()
 	case string(constants.UNAVAILABLE):
-		s = "unavailable"
+		s = UNAVAILABLE
+		res, err = x.redis.HKeys(x.ctx, s).Result()
 	default:
 		return errors.New("type not found")
 	}
 
-	// get all
-	res, err := x.redis.LRange(x.ctx, s, 0, -1).Result()
 	if err != nil {
 		return err
 	}
@@ -185,7 +211,7 @@ func (x *xrefServer) getXref(xrefReq *models.XrefRequest) (*models.XrefResponse,
 	// magic num status
 	status := constants.EXISTING
 
-	val, err := x.redis.Get(x.ctx, xrefReq.LastFour).Result()
+	val, err := x.redis.HGet(x.ctx, XMAP, xrefReq.LastFour).Result()
 	if err != nil {
 		magicNum, err := x.redis.RPop(x.ctx, AVAILABLE).Result()
 		if err != nil {
@@ -194,10 +220,10 @@ func (x *xrefServer) getXref(xrefReq *models.XrefRequest) (*models.XrefResponse,
 
 		status = constants.NEW
 		val = magicNum + xrefReq.LastFour
-		x.redis.Set(x.ctx, xrefReq.LastFour, val, 0)
+		x.redis.HSet(x.ctx, XMAP, xrefReq.LastFour, val)
 
-		// write magic num to UNAVAILABLE list
-		go x.redis.RPush(x.ctx, UNAVAILABLE, magicNum)
+		// write magic num to UNAVAILABLE map
+		go x.redis.HSet(x.ctx, UNAVAILABLE, magicNum, val)
 	}
 
 	return &models.XrefResponse{
