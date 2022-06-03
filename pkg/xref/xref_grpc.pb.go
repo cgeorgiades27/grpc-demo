@@ -23,8 +23,9 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type XrefServiceClient interface {
 	GetXref(ctx context.Context, in *XrefRequest, opts ...grpc.CallOption) (*XrefResponse, error)
+	GetMagicNumberSummary(ctx context.Context, in *Status, opts ...grpc.CallOption) (*MagicNumberSummary, error)
 	AddXrefs(ctx context.Context, opts ...grpc.CallOption) (XrefService_AddXrefsClient, error)
-	GetAllXrefs(ctx context.Context, in *XrefStatus, opts ...grpc.CallOption) (XrefService_GetAllXrefsClient, error)
+	GetMagicNumbers(ctx context.Context, in *Status, opts ...grpc.CallOption) (XrefService_GetMagicNumbersClient, error)
 	GetXrefs(ctx context.Context, opts ...grpc.CallOption) (XrefService_GetXrefsClient, error)
 }
 
@@ -39,6 +40,15 @@ func NewXrefServiceClient(cc grpc.ClientConnInterface) XrefServiceClient {
 func (c *xrefServiceClient) GetXref(ctx context.Context, in *XrefRequest, opts ...grpc.CallOption) (*XrefResponse, error) {
 	out := new(XrefResponse)
 	err := c.cc.Invoke(ctx, "/xref.XrefService/GetXref", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *xrefServiceClient) GetMagicNumberSummary(ctx context.Context, in *Status, opts ...grpc.CallOption) (*MagicNumberSummary, error) {
+	out := new(MagicNumberSummary)
+	err := c.cc.Invoke(ctx, "/xref.XrefService/GetMagicNumberSummary", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -79,12 +89,12 @@ func (x *xrefServiceAddXrefsClient) CloseAndRecv() (*XrefSummary, error) {
 	return m, nil
 }
 
-func (c *xrefServiceClient) GetAllXrefs(ctx context.Context, in *XrefStatus, opts ...grpc.CallOption) (XrefService_GetAllXrefsClient, error) {
-	stream, err := c.cc.NewStream(ctx, &XrefService_ServiceDesc.Streams[1], "/xref.XrefService/GetAllXrefs", opts...)
+func (c *xrefServiceClient) GetMagicNumbers(ctx context.Context, in *Status, opts ...grpc.CallOption) (XrefService_GetMagicNumbersClient, error) {
+	stream, err := c.cc.NewStream(ctx, &XrefService_ServiceDesc.Streams[1], "/xref.XrefService/GetMagicNumbers", opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &xrefServiceGetAllXrefsClient{stream}
+	x := &xrefServiceGetMagicNumbersClient{stream}
 	if err := x.ClientStream.SendMsg(in); err != nil {
 		return nil, err
 	}
@@ -94,17 +104,17 @@ func (c *xrefServiceClient) GetAllXrefs(ctx context.Context, in *XrefStatus, opt
 	return x, nil
 }
 
-type XrefService_GetAllXrefsClient interface {
-	Recv() (*XrefResponse, error)
+type XrefService_GetMagicNumbersClient interface {
+	Recv() (*MagicNumber, error)
 	grpc.ClientStream
 }
 
-type xrefServiceGetAllXrefsClient struct {
+type xrefServiceGetMagicNumbersClient struct {
 	grpc.ClientStream
 }
 
-func (x *xrefServiceGetAllXrefsClient) Recv() (*XrefResponse, error) {
-	m := new(XrefResponse)
+func (x *xrefServiceGetMagicNumbersClient) Recv() (*MagicNumber, error) {
+	m := new(MagicNumber)
 	if err := x.ClientStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
@@ -147,8 +157,9 @@ func (x *xrefServiceGetXrefsClient) Recv() (*XrefResponse, error) {
 // for forward compatibility
 type XrefServiceServer interface {
 	GetXref(context.Context, *XrefRequest) (*XrefResponse, error)
+	GetMagicNumberSummary(context.Context, *Status) (*MagicNumberSummary, error)
 	AddXrefs(XrefService_AddXrefsServer) error
-	GetAllXrefs(*XrefStatus, XrefService_GetAllXrefsServer) error
+	GetMagicNumbers(*Status, XrefService_GetMagicNumbersServer) error
 	GetXrefs(XrefService_GetXrefsServer) error
 	mustEmbedUnimplementedXrefServiceServer()
 }
@@ -160,11 +171,14 @@ type UnimplementedXrefServiceServer struct {
 func (UnimplementedXrefServiceServer) GetXref(context.Context, *XrefRequest) (*XrefResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetXref not implemented")
 }
+func (UnimplementedXrefServiceServer) GetMagicNumberSummary(context.Context, *Status) (*MagicNumberSummary, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetMagicNumberSummary not implemented")
+}
 func (UnimplementedXrefServiceServer) AddXrefs(XrefService_AddXrefsServer) error {
 	return status.Errorf(codes.Unimplemented, "method AddXrefs not implemented")
 }
-func (UnimplementedXrefServiceServer) GetAllXrefs(*XrefStatus, XrefService_GetAllXrefsServer) error {
-	return status.Errorf(codes.Unimplemented, "method GetAllXrefs not implemented")
+func (UnimplementedXrefServiceServer) GetMagicNumbers(*Status, XrefService_GetMagicNumbersServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetMagicNumbers not implemented")
 }
 func (UnimplementedXrefServiceServer) GetXrefs(XrefService_GetXrefsServer) error {
 	return status.Errorf(codes.Unimplemented, "method GetXrefs not implemented")
@@ -200,6 +214,24 @@ func _XrefService_GetXref_Handler(srv interface{}, ctx context.Context, dec func
 	return interceptor(ctx, in, info, handler)
 }
 
+func _XrefService_GetMagicNumberSummary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Status)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(XrefServiceServer).GetMagicNumberSummary(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/xref.XrefService/GetMagicNumberSummary",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(XrefServiceServer).GetMagicNumberSummary(ctx, req.(*Status))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _XrefService_AddXrefs_Handler(srv interface{}, stream grpc.ServerStream) error {
 	return srv.(XrefServiceServer).AddXrefs(&xrefServiceAddXrefsServer{stream})
 }
@@ -226,24 +258,24 @@ func (x *xrefServiceAddXrefsServer) Recv() (*XrefRequest, error) {
 	return m, nil
 }
 
-func _XrefService_GetAllXrefs_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(XrefStatus)
+func _XrefService_GetMagicNumbers_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(Status)
 	if err := stream.RecvMsg(m); err != nil {
 		return err
 	}
-	return srv.(XrefServiceServer).GetAllXrefs(m, &xrefServiceGetAllXrefsServer{stream})
+	return srv.(XrefServiceServer).GetMagicNumbers(m, &xrefServiceGetMagicNumbersServer{stream})
 }
 
-type XrefService_GetAllXrefsServer interface {
-	Send(*XrefResponse) error
+type XrefService_GetMagicNumbersServer interface {
+	Send(*MagicNumber) error
 	grpc.ServerStream
 }
 
-type xrefServiceGetAllXrefsServer struct {
+type xrefServiceGetMagicNumbersServer struct {
 	grpc.ServerStream
 }
 
-func (x *xrefServiceGetAllXrefsServer) Send(m *XrefResponse) error {
+func (x *xrefServiceGetMagicNumbersServer) Send(m *MagicNumber) error {
 	return x.ServerStream.SendMsg(m)
 }
 
@@ -284,6 +316,10 @@ var XrefService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GetXref",
 			Handler:    _XrefService_GetXref_Handler,
 		},
+		{
+			MethodName: "GetMagicNumberSummary",
+			Handler:    _XrefService_GetMagicNumberSummary_Handler,
+		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
@@ -292,8 +328,8 @@ var XrefService_ServiceDesc = grpc.ServiceDesc{
 			ClientStreams: true,
 		},
 		{
-			StreamName:    "GetAllXrefs",
-			Handler:       _XrefService_GetAllXrefs_Handler,
+			StreamName:    "GetMagicNumbers",
+			Handler:       _XrefService_GetMagicNumbers_Handler,
 			ServerStreams: true,
 		},
 		{

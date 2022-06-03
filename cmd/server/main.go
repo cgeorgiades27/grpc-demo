@@ -14,7 +14,7 @@ import (
 
 var (
 	port      = flag.Int("port", 50051, "The server port")
-	redisAddr = flag.String("rdssvr", "localhost:6379", "redis server address")
+	redisAddr = flag.String("redis", "localhost:6379", "redis server address")
 	dataPath  = flag.String("data", "./data/random", "init data path")
 )
 

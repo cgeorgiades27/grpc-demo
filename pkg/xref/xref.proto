@@ -12,26 +12,37 @@ message XrefResponse {
     XREF token = 1;
 }
 
-message XrefStatus {
-    enum StatusEnum {
-        AVAILABLE = 0;
-        UNAVAILABLE = 1;
-    } 
-}
-
 message XREF {
     string value = 1;
 }
 
 message XrefSummary {
-    int32 total_new = 1;
-    int32 total_updated = 2;
-    int32 elapsed_time = 3;
+    uint32 total_new = 1;
+    uint32 total_updated = 2;
+    uint32 elapsed_time = 3;
+}
+
+message MagicNumber {
+    string value = 1;
+}
+
+
+message MagicNumberSummary {
+    uint64 total = 1;
+}
+
+message Status {
+    enum STATUS {
+        AVAILABLE = 0;
+        UNAVAILABLE = 1;
+    }
+    STATUS status = 1;
 }
 
 service XrefService {
     rpc GetXref(XrefRequest) returns (XrefResponse) {}
+    rpc GetMagicNumberSummary(Status) returns (MagicNumberSummary) {}
     rpc AddXrefs(stream XrefRequest) returns (XrefSummary) {}
-    rpc GetAllXrefs(XrefStatus) returns (stream XrefResponse) {}
+    rpc GetMagicNumbers(Status) returns (stream MagicNumber) {}
     rpc GetXrefs(stream XrefRequest) returns (stream XrefResponse) {}
 }

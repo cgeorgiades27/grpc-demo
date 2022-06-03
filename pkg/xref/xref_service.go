@@ -61,6 +61,30 @@ func (x *xrefServer) GetXref(ctx context.Context, in *XrefRequest) (*XrefRespons
 	}, nil
 }
 
+// GetMagicNumbers gets all magic numbers by STATUS
+func (x *xrefServer) GetMagicNumberSummary(ctx context.Context, status *Status) (*MagicNumberSummary, error) {
+
+	var s string
+	statusType := status.Status.String()
+	switch statusType {
+	case string(constants.AVAILABLE):
+		s = "available"
+	case string(constants.UNAVAILABLE):
+		s = "unavailable"
+	default:
+		return nil, errors.New("type not found")
+	}
+
+	// get all
+	res, err := x.redis.LLen(x.ctx, s).Result()
+	if err != nil {
+		return nil, err
+	}
+
+	return &MagicNumberSummary{Total: uint64(res)}, nil
+}
+
+// AddXrefs accepts a stream of requests and returns a summary
 func (x *xrefServer) AddXrefs(stream XrefService_AddXrefsServer) error {
 
 	// counters
@@ -73,9 +97,9 @@ func (x *xrefServer) AddXrefs(stream XrefService_AddXrefsServer) error {
 		if err == io.EOF {
 			endTime := time.Now()
 			return stream.SendAndClose(&XrefSummary{
-				TotalNew:     int32(totalNew),
-				TotalUpdated: int32(totalUpdated),
-				ElapsedTime:  int32(endTime.Sub(startTime)),
+				TotalNew:     uint32(totalNew),
+				TotalUpdated: uint32(totalUpdated),
+				ElapsedTime:  uint32(endTime.Sub(startTime)),
 			})
 		}
 		if err != nil {
@@ -87,6 +111,7 @@ func (x *xrefServer) AddXrefs(stream XrefService_AddXrefsServer) error {
 			return err
 		}
 
+		// build counts
 		switch xrefRes.Status {
 		case constants.NEW:
 			totalNew++
@@ -96,6 +121,56 @@ func (x *xrefServer) AddXrefs(stream XrefService_AddXrefsServer) error {
 	}
 }
 
+// GetMagicNumbers gets all magic numbers by STATUS
+func (x *xrefServer) GetMagicNumbers(status *Status, stream XrefService_GetMagicNumbersServer) error {
+
+	var s string
+	statusType := status.Status.String()
+	switch statusType {
+	case string(constants.AVAILABLE):
+		s = "available"
+	case string(constants.UNAVAILABLE):
+		s = "unavailable"
+	default:
+		return errors.New("type not found")
+	}
+
+	// get all
+	res, err := x.redis.LRange(x.ctx, s, 0, -1).Result()
+	if err != nil {
+		return err
+	}
+
+	// stream all magic numbers to client
+	for _, magicNum := range res {
+		if err := stream.Send(&MagicNumber{Value: magicNum}); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// GetXrefs is a bidirectional stream for getting and sending xrefs
+func (x *xrefServer) GetXrefs(stream XrefService_GetXrefsServer) error {
+
+	// receive and send stream
+	for {
+		xrefReq, err := stream.Recv()
+		if err == io.EOF {
+			return nil
+		}
+		if err != nil {
+			return nil
+		}
+
+		xrefRes, err := x.getXref(&models.XrefRequest{LastFour: xrefReq.GetLastfour()})
+		if err := stream.Send(&XrefResponse{Token: &XREF{Value: xrefRes.XREF.Value}}); err != nil {
+			return err
+		}
+	}
+}
+
+// getXref operates on the cache to get/set xrefs
 func (x *xrefServer) getXref(xrefReq *models.XrefRequest) (*models.XrefResponse, error) {
 
 	// has to be len 4
@@ -117,7 +192,7 @@ func (x *xrefServer) getXref(xrefReq *models.XrefRequest) (*models.XrefResponse,
 		val = magicNum + xrefReq.LastFour
 		x.redis.Set(x.ctx, xrefReq.LastFour, val, 0)
 
-		// write magic num to UNAVAIL list
+		// write magic num to UNAVAILABLE list
 		go x.redis.RPush(x.ctx, UNAVAILABLE, magicNum)
 	}
 
